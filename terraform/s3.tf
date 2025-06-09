@@ -1,0 +1,24 @@
+#resource "aws_s3_bucket" "log_bucket" {
+ # bucket = var.log_bucket_name
+  #force_destroy = false
+  #tags = {
+   # Name = var.log_bucket_name
+  #}
+#}
+
+#resource "aws_s3_bucket_acl" "log_bucket_acl" {
+# acl    = "private"
+ # bucket = aws_s3_bucket.log_bucket.id
+#}
+
+#resource "aws_s3_bucket_public_access_block" "log_bucket_block" {
+ # bucket = aws_s3_bucket.log_bucket.id
+
+  #block_public_acls       = true
+  #block_public_policy     = true
+  #ignore_public_acls      = true
+  #restrict_public_buckets = true
+#}
+data "aws_s3_bucket" "log_bucket" {
+  bucket = var.log_bucket_name
+}

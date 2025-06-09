@@ -1,0 +1,63 @@
+# Python cache files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Environment files
+.env
+*.env
+.venv/
+venv/
+
+# VSCode / IDE
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and local debug
+*.log
+*.out
+*.pid
+
+# Terraform files
+*.tfstate
+*.tfstate.*
+.crash
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+terraform.tfvars.json
+
+# Docker
+docker-compose.override.yml
+**/Dockerfile-build/
+*.tar
+*.img
+
+# GitHub/Secrets
+secrets.tfvars
+*.pem
+*.key
+*.crt
+
+# Output files
+output.json
+*.csv
+*.zip
+*.tar.gz
+
+# EC2 key pairs
+*.pem
+
+# CloudFront logs (if any get downloaded)
+cloudfront-logs/

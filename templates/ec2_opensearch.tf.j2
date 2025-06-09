@@ -1,0 +1,11 @@
+resource "aws_instance" "opensearch" {
+  ami           = "{{ ami_id }}"
+  instance_type = "{{ instance_type }}"
+  key_name      = "{{ key_name }}"
+
+  user_data = file("../files/opensearch_install.sh")
+
+  tags = {
+    Name = "OpenSearch-Instance"
+  }
+}
