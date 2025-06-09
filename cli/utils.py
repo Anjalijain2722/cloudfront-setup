@@ -5,12 +5,12 @@ from jinja2 import Environment, FileSystemLoader
 
 def get_boto3_session(region=None):
     return boto3.Session(
-        aws_access_key_id='AKIA4PVCD6SFSCPTAT5F',
-        aws_secret_access_key='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',
+        aws_access_key_id='',
+        aws_secret_access_key='',
         region_name=region
     ) if region else boto3.Session(
-        aws_access_key_id='AKIA4PVCD6SFSCPTAT5F',
-        aws_secret_access_key='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'
+        aws_access_key_id='',
+        aws_secret_access_key=''
     )
 
 def render_template(template_path, output_path, context):
@@ -22,8 +22,8 @@ def render_template(template_path, output_path, context):
 
 def apply_terraform(directory, bucket_name=None):
     env = os.environ.copy()
-    env["AWS_ACCESS_KEY_ID"] = "AKIA4PVCD6SFSCPTAT5F"
-    env["AWS_SECRET_ACCESS_KEY"] = "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"
+    env["AWS_ACCESS_KEY_ID"] = ""
+    env["AWS_SECRET_ACCESS_KEY"] = ""
     env["AWS_DEFAULT_REGION"] = "us-east-1"
 
     if bucket_name:
