@@ -1,24 +1,57 @@
+import paramiko
 import os
-from jinja2 import Environment, FileSystemLoader
 
-def render_and_apply_terraform(region, bucket_name, key_name, ami_id, instance_type, origin_domain):
-    env = Environment(loader=FileSystemLoader("templates"))
-    
-    variables = {
-        "region": region,
-        "bucket_name": bucket_name,
-        "key_name": key_name,
-        "ami_id": ami_id,
-        "instance_type": instance_type,
-        "origin_domain": origin_domain
-    }
+def get_existing_instance_dns(session, instance_id):
+    ec2 = session.client('ec2')
+    reservations = ec2.describe_instances(InstanceIds=[instance_id])['Reservations']
+    if not reservations:
+        raise Exception(f"No instance found with ID {instance_id}")
+    instance = reservations[0]['Instances'][0]
+    return instance.get('PublicDnsName') or instance.get('PublicIpAddress')
 
-    for file in ["main.tf.j2", "s3_logging.tf.j2", "ec2_opensearch.tf.j2", "cloudfront_logging.tf.j2"]:
-        template = env.get_template(file)
-        output = template.render(**variables)
-        with open(f"terraform/{file[:-3]}", "w") as f:
-            f.write(output)
+def is_nginx_installed(hostname, key_name):
+    key_path = os.path.expanduser(key_name)
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(hostname, username="ubuntu", key_filename=key_path)
+    stdin, stdout, stderr = ssh.exec_command("nginx -v")
+    output = stdout.read().decode() + stderr.read().decode()
+    ssh.close()
+    return "nginx version" in output.lower()
 
-    os.chdir("terraform")
-    os.system("terraform init")
-    os.system("terraform apply -auto-approve")
+def install_nginx(hostname, key_name):
+    key_path = os.path.expanduser(key_name)
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(hostname, username="ubuntu", key_filename=key_path)
+    cmds = [
+        "sudo apt-get update",
+        "sudo apt-get install -y nginx",
+        "sudo systemctl start nginx",
+        "sudo systemctl enable nginx"
+    ]
+    for cmd in cmds:
+        ssh.exec_command(cmd)
+    ssh.close()
+
+def install_opensearch_stack(hostname, key_name):
+    key_path = os.path.expanduser(key_name)
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(hostname, username="ubuntu", key_filename=key_path)
+    cmds = [
+        # Install Docker
+        "sudo apt-get update",
+        "sudo apt-get install -y docker.io docker-compose",
+        # Pull and run OpenSearch & Dashboards
+        "sudo docker pull opensearchproject/opensearch:latest",
+        "sudo docker pull opensearchproject/opensearch-dashboards:latest",
+        "sudo docker network create opensearch-net || true",
+        # Run OpenSearch container
+        "sudo docker run -d --name opensearch-node1 --network opensearch-net -p 9200:9200 -p 9600:9600 -e discovery.type=single-node opensearchproject/opensearch:latest",
+        # Run Dashboards container
+        "sudo docker run -d --name opensearch-dashboards --network opensearch-net -p 5601:5601 opensearchproject/opensearch-dashboards:latest"
+    ]
+    for cmd in cmds:
+        ssh.exec_command(cmd)
+    ssh.close()

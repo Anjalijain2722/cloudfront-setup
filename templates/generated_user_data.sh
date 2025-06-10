@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Check if nginx is installed
+if ! command -v nginx &> /dev/null
+then
+    echo "Installing nginx..."
+    apt update && apt install -y nginx
+else
+    echo "Nginx already installed."
+fi
+
+# Install Docker if not present
+if ! command -v docker &> /dev/null
+then
+    echo "Installing Docker..."
+    apt update && apt install -y docker.io
+    systemctl start docker
+    systemctl enable docker
+else
+    echo "Docker already installed."
+fi
+
+# Run OpenSearch and Dashboard
+docker network create opensearch-net
+
+docker run -d --name opensearch-node \
+  --net opensearch-net \
+  -p 9200:9200 -p 9600:9600 \
+  -e "discovery.type=single-node" \
+  -e "plugins.security.disabled=true" \
+  opensearchproject/opensearch:2
+
+docker run -d --name opensearch-dashboards \
+  --net opensearch-net \
+  -p 5601:5601 \
+  -e "OPENSEARCH_HOSTS=http://opensearch-node:9200" \
+  opensearchproject/opensearch-dashboards:2

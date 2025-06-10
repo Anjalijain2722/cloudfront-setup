@@ -1,11 +1,16 @@
+{% if not use_existing_instance %}
 resource "aws_instance" "opensearch" {
   ami           = "{{ ami_id }}"
   instance_type = "{{ instance_type }}"
   key_name      = "{{ key_name }}"
-
-  user_data = file("../files/opensearch_install.sh")
+  user_data     = file("templates/generated_user_data.sh")
 
   tags = {
     Name = "OpenSearch-Instance"
   }
 }
+{% else %}
+output "opensearch_instance_id" {
+  value = "{{ existing_instance_id }}"
+}
+{% endif %}

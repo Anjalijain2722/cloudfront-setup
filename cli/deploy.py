@@ -1,40 +1,69 @@
 import sys
 import os
-import time   # <-- import time for sleep
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Add terraform directory to sys.path dynamically (adjust path as needed)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'terraform')))
 
-from cli.utils import get_boto3_session, render_template, apply_terraform
-from cli.cloudfront import select_distribution, enable_logging
-from cli.s3 import ensure_bucket
-from cli.ec2 import render_and_apply_terraform
-
+from utils import get_boto3_session, ask_input, render_and_apply_terraform
+from ec2 import get_existing_instance_dns, is_nginx_installed, install_nginx, install_opensearch_stack
+from cloudfront import create_distribution
+from s3 import ensure_bucket
 
 def main():
-    region = input("Enter AWS Region: ")
+    region = ask_input("Enter AWS Region: ")
     session = get_boto3_session(region)
-    log_dest = input("Where do you want to store logs (s3/cloudwatch/kinesis): ").strip()
-    key_name = input("Enter EC2 Key Pair name: ")
-    instance_type = input("Enter EC2 instance type [default: t3.medium]: ") or "t3.medium"
 
-    distribution_id = select_distribution(session)
-    bucket_name = input("Enter name for log bucket: ")
-    ensure_bucket(session, bucket_name, region)
+    key_name = ask_input("Enter EC2 Key Pair name: ")
+    key_path = ask_input("Enter full path to your private key file (e.g. /home/anjali/.ssh/data.pem): ")
+    instance_type = ask_input("Enter EC2 instance type [default: t3.medium]: ", default="t3.medium")
 
-    time.sleep(5)  # <-- add delay here to ensure bucket is ready
+    use_existing_ec2_input = ask_input("Use existing EC2 instance? (y/n): ").lower()
+    use_existing_ec2 = use_existing_ec2_input == 'y'
 
-    enable_logging(session, distribution_id, bucket_name)
+    if use_existing_ec2:
+        instance_id = ask_input("Enter existing EC2 Instance ID: ")
+    else:
+        print("Launching new EC2 not supported in current flow.")
+        return
 
-    ami_id = "ami-0c02fb55956c7d316"  # Ubuntu 22.04 LTS for example (us-east-1)
-    origin_domain = input("Enter S3 origin domain (e.g. bucket.s3.amazonaws.com): ")
+    ec2_dns = get_existing_instance_dns(session, instance_id)
+    print(f"Using existing EC2 DNS: {ec2_dns}")
 
-    render_template("main.tf.j2", "../terraform/main.tf", locals())
-    render_template("../templates/s3_logging.tf.j2", "../terraform/s3.tf", locals())
-    render_template("../templates/ec2_opensearch.tf.j2", "../terraform/ec2.tf", locals())
-    render_template("../templates/cloudfront_logging.tf.j2", "../terraform/cloudfront.tf", locals())
+    use_existing_distribution = ask_input("Use existing CloudFront distribution? (y/n): ").lower() == 'y'
+    if use_existing_distribution:
+        distribution_id = ask_input("Enter existing CloudFront Distribution ID: ")
+    else:
+        distribution_id = create_distribution(session, ec2_dns)
+        print(f"New CloudFront Distribution created: {distribution_id}")
 
-    apply_terraform("../terraform", bucket_name)
+    use_existing_bucket = ask_input("Use existing S3 bucket? (y/n): ").lower() == 'y'
+    if use_existing_bucket:
+        bucket_name = ask_input("Enter existing bucket name: ")
+    else:
+        bucket_name = ask_input("Enter new bucket name: ")
+        ensure_bucket(session, bucket_name, region)
 
+    print("Logging enabled on CloudFront distribution.")
+
+    # Pass the actual boolean, not a hardcoded True
+    render_and_apply_terraform(
+        region=region,
+        bucket_name=bucket_name,
+        key_name=key_name,
+        ami_id="ami-09d56f8956ab235b3",  # Example Ubuntu AMI
+        instance_type=instance_type,
+        ec2_instance_id=instance_id,
+        use_existing_instance=use_existing_ec2,  # <-- Use actual boolean here
+        cloudfront_distribution_id=distribution_id
+    )
+
+    # Now use the key_path input consistently for SSH commands
+    if not is_nginx_installed(ec2_dns, key_path):
+       install_nginx(ec2_dns, key_path)
+
+    install_opensearch_stack(ec2_dns, key_path)
+
+    print(f"\nOpenSearch Dashboard should be available at: http://{ec2_dns}:5601")
 
 if __name__ == "__main__":
     main()

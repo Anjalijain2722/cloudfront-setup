@@ -1,36 +1,39 @@
-import boto3
-import botocore
-import sys
-print("Python executable:", sys.executable)
-print("boto3 version:", boto3.__version__)
-print("boto3 path:", boto3.__file__)
-print("botocore version:", botocore.__version__)
-print("botocore path:", botocore.__file__)
-
-def select_distribution(session):
+def create_distribution(session, origin_domain_name):
     cf = session.client('cloudfront')
-    response = cf.list_distributions()
-    dists = response.get('DistributionList', {}).get('Items', [])
-    for idx, dist in enumerate(dists):
-        print(f"[{idx}] {dist['Id']} - {dist['DomainName']}")
-    choice = int(input("Select distribution by index: "))
-    return dists[choice]['Id']
-
-def enable_logging(session, distribution_id, bucket_name):
-    client = session.client("cloudfront")
-    dist_config = client.get_distribution_config(Id=distribution_id)
-    config = dist_config["DistributionConfig"]
-    etag = dist_config["ETag"]
-    config["Logging"] = {
-        "Enabled": True,
-        "IncludeCookies": False,
-        "Bucket": f"{bucket_name}.s3.amazonaws.com",
-        "Prefix": "cloudfront-logs/"
-        # No LogBucketOwnerFullControl here
+    distribution_config = {
+        'CallerReference': str(hash(origin_domain_name)),
+        'Origins': {
+            'Quantity': 1,
+            'Items': [{
+                'Id': 'origin1',
+                'DomainName': origin_domain_name,
+                'OriginPath': '',
+                'CustomOriginConfig': {
+                    'HTTPPort': 80,
+                    'HTTPSPort': 443,
+                    'OriginProtocolPolicy': 'http-only'
+                }
+            }]
+        },
+        'DefaultCacheBehavior': {
+            'TargetOriginId': 'origin1',
+            'ViewerProtocolPolicy': 'allow-all',
+            'TrustedSigners': {
+                'Enabled': False,
+                'Quantity': 0
+            },
+            'ForwardedValues': {
+                'QueryString': False,
+                'Cookies': {'Forward': 'none'}
+            },
+            'DefaultTTL': 86400,
+            'MinTTL': 0,
+            'MaxTTL': 31536000
+        },
+        'Comment': 'Created by automation',
+        'Enabled': True
     }
-    response = client.update_distribution(
-        Id=distribution_id,
-        IfMatch=etag,
-        DistributionConfig=config
-    )
-    print("Logging enabled on CloudFront distribution.")
+
+    response = cf.create_distribution(DistributionConfig=distribution_config)
+    distribution_id = response['Distribution']['Id']
+    return distribution_id
